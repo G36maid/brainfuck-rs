@@ -4,8 +4,8 @@ A minimalist Brainfuck toolchain written in Rust, featuring both an optimizing i
 
 ## Components
 
-1.  **bfi (Interpreter)**: A lightweight interpreter featuring **Instruction Folding (Run-Length Encoding)**, **Clear Loop Optimization**, **Move Loop Optimization**, **Scan Loop Optimization**, and pre-computed jump targets. It folds consecutive identical operations (e.g., `>>>`, `+++`), optimizes `[-]` loops, transforms linear loops like `[->+<]` into optimized arithmetic, and optimizes scan loops like `[<]` and `[>]`.
-2.  **bfc (Compiler)**: A transpiler that converts Brainfuck code to Rust. It performs **Instruction Folding**, **Clear Loop Optimization**, **Move Loop Optimization**, and **Scan Loop Optimization** during transpilation, utilizing LLVM (`rustc`) for heavy optimizations (auto-vectorization, loop unrolling, etc.).
+1.  **bfi (Interpreter)**: A lightweight interpreter featuring **Instruction Folding (Run-Length Encoding)**, **Dead Code Elimination (DCE)**, **Clear Loop Optimization**, **Move Loop Optimization**, **Scan Loop Optimization**, and pre-computed jump targets. It removes unreachable code/loops, folds consecutive identical operations (e.g., `>>>`, `+++`), optimizes `[-]` loops, transforms linear loops like `[->+<]` into optimized arithmetic, and optimizes scan loops like `[<]` and `[>]`.
+2.  **bfc (Compiler)**: A transpiler that converts Brainfuck code to Rust. It performs **Instruction Folding**, **Dead Code Elimination**, **Clear Loop Optimization**, **Move Loop Optimization**, and **Scan Loop Optimization** during transpilation, utilizing LLVM (`rustc`) for heavy optimizations (auto-vectorization, loop unrolling, etc.).
 
 ## Usage
 
@@ -47,7 +47,7 @@ bash script/bench.sh
 
 | Implementation | Time (mean) | Speedup |
 |----------------|-------------|---------|
-| **Interpreter (bfi)** | ~3.39 s | 1x |
-| **Compiler (bfc)** | ~0.53 s | ~6.5x |
+| **Interpreter (bfi)** | ~4.09 s | 1x |
+| **Compiler (bfc)** | ~0.52 s | ~7.9x |
 
 *System: Linux, Rust 1.x*
