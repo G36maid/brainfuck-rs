@@ -92,6 +92,34 @@ fn main() {
                 println!("        ptr = tape.len();");
                 println!("    }}");
             }
+            Op::BulkAdd(deltas) => {
+                println!("    {{");
+                for (offset, n) in deltas {
+                    if offset == 0 {
+                        println!("        tape[ptr] = tape[ptr].wrapping_add({});", n);
+                    } else {
+                        println!(
+                            "        tape[ptr.wrapping_add_signed({}isize)] = tape[ptr.wrapping_add_signed({}isize)].wrapping_add({});",
+                            offset, offset, n
+                        );
+                    }
+                }
+                println!("    }}");
+            }
+            Op::BulkClear(offsets) => {
+                println!("    {{");
+                for offset in offsets {
+                    if offset == 0 {
+                        println!("        tape[ptr] = 0;");
+                    } else {
+                        println!(
+                            "        tape[ptr.wrapping_add_signed({}isize)] = 0;",
+                            offset
+                        );
+                    }
+                }
+                println!("    }}");
+            }
         }
     }
 

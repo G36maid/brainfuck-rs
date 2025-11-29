@@ -4,8 +4,8 @@ A minimalist Brainfuck toolchain written in Rust, featuring both an optimizing i
 
 ## Components
 
-1.  **bfi (Interpreter)**: A lightweight interpreter featuring **Instruction Folding (Run-Length Encoding)**, **Offset Optimization (Lazy Pointer)**, **Dead Code Elimination (DCE)**, **Clear Loop Optimization**, **Move Loop Optimization**, **Scan Loop Optimization**, and pre-computed jump targets. It defers pointer movements to merge operations, removes unreachable code/loops, folds consecutive identical operations (e.g., `>>>`, `+++`), optimizes `[-]` loops, transforms linear loops like `[->+<]` into optimized arithmetic, and optimizes scan loops like `[<]` and `[>]`.
-2.  **bfc (Compiler)**: A transpiler that converts Brainfuck code to Rust. It performs **Instruction Folding**, **Offset Optimization**, **Dead Code Elimination**, **Clear Loop Optimization**, **Move Loop Optimization**, and **Scan Loop Optimization** during transpilation, utilizing LLVM (`rustc`) for heavy optimizations (auto-vectorization, loop unrolling, etc.).
+1.  **bfi (Interpreter)**: A lightweight interpreter featuring **Instruction Folding (Run-Length Encoding)**, **Offset Optimization (Lazy Pointer)**, **Dead Code Elimination (DCE)**, **Clear Loop Optimization**, **Move Loop Optimization**, **Scan Loop Optimization**, **Parallel Assignment (Bulk Operations)**, and pre-computed jump targets. It defers pointer movements to merge operations, removes unreachable code/loops, folds consecutive identical operations (e.g., `>>>`, `+++`), optimizes `[-]` loops, transforms linear loops like `[->+<]` into optimized arithmetic, optimizes scan loops like `[<]` and `[>]`, and batches consecutive updates into parallel assignments.
+2.  **bfc (Compiler)**: A transpiler that converts Brainfuck code to Rust. It performs **Instruction Folding**, **Offset Optimization**, **Dead Code Elimination**, **Clear Loop Optimization**, **Move Loop Optimization**, **Scan Loop Optimization**, and **Parallel Assignment** during transpilation, utilizing LLVM (`rustc`) for heavy optimizations (auto-vectorization, loop unrolling, etc.).
 
 ## Usage
 
@@ -47,7 +47,7 @@ bash script/bench.sh
 
 | Implementation | Time (mean) | Speedup |
 |----------------|-------------|---------|
-| **Interpreter (bfi)** | ~3.88 s | 1x |
-| **Compiler (bfc)** | ~0.52 s | ~7.4x |
+| **Interpreter (bfi)** | ~3.50 s | 1x |
+| **Compiler (bfc)** | ~0.52 s | ~6.7x |
 
 *System: Linux, Rust 1.x*

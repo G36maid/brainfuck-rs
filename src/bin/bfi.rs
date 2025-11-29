@@ -31,17 +31,17 @@ fn execute(ops: Vec<Op>) {
     let mut stdin = io::stdin();
 
     while pc < ops.len() {
-        match ops[pc] {
+        match &ops[pc] {
             Op::PtrAdd(n) => {
-                ptr = ptr.wrapping_add_signed(n);
+                ptr = ptr.wrapping_add_signed(*n);
             }
             Op::ValAdd(offset, n) => {
-                let idx = ptr.wrapping_add_signed(offset);
-                tape[idx] = tape[idx].wrapping_add(n);
+                let idx = ptr.wrapping_add_signed(*offset);
+                tape[idx] = tape[idx].wrapping_add(*n);
             }
             Op::ValSub(offset, n) => {
-                let idx = ptr.wrapping_add_signed(offset);
-                tape[idx] = tape[idx].wrapping_sub(n);
+                let idx = ptr.wrapping_add_signed(*offset);
+                tape[idx] = tape[idx].wrapping_sub(*n);
             }
             Op::Output => {
                 out.write_all(&[tape[ptr]]).unwrap();
@@ -52,23 +52,23 @@ fn execute(ops: Vec<Op>) {
             }
             Op::Jz(target) => {
                 if tape[ptr] == 0 {
-                    pc = target;
+                    pc = *target;
                 }
             }
             Op::Jnz(target) => {
                 if tape[ptr] != 0 {
-                    pc = target;
+                    pc = *target;
                 }
             }
             Op::Clear(offset) => {
-                let idx = ptr.wrapping_add_signed(offset);
+                let idx = ptr.wrapping_add_signed(*offset);
                 tape[idx] = 0;
             }
             Op::MulAdd(offset, factor) => {
                 if tape[ptr] != 0 {
-                    let target_idx = ptr.wrapping_add_signed(offset);
+                    let target_idx = ptr.wrapping_add_signed(*offset);
                     tape[target_idx] =
-                        tape[target_idx].wrapping_add(tape[ptr].wrapping_mul(factor));
+                        tape[target_idx].wrapping_add(tape[ptr].wrapping_mul(*factor));
                 }
             }
             Op::ScanLeft => {
@@ -83,6 +83,18 @@ fn execute(ops: Vec<Op>) {
                     ptr += pos;
                 } else {
                     ptr = tape.len();
+                }
+            }
+            Op::BulkAdd(deltas) => {
+                for (offset, n) in deltas {
+                    let idx = ptr.wrapping_add_signed(*offset);
+                    tape[idx] = tape[idx].wrapping_add(*n);
+                }
+            }
+            Op::BulkClear(offsets) => {
+                for offset in offsets {
+                    let idx = ptr.wrapping_add_signed(*offset);
+                    tape[idx] = 0;
                 }
             }
         }

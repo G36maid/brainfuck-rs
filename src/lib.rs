@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
     PtrAdd(isize),
     ValAdd(isize, u8),
@@ -13,6 +13,8 @@ pub enum Op {
     MulAdd(isize, u8),
     ScanLeft,
     ScanRight,
+    BulkAdd(Vec<(isize, u8)>),
+    BulkClear(Vec<isize>),
 }
 
 pub fn parse(code: Vec<u8>) -> Vec<Op> {
@@ -171,7 +173,140 @@ pub fn parse(code: Vec<u8>) -> Vec<Op> {
 
 pub fn optimize(ops: Vec<Op>) -> Vec<Op> {
     let ops = optimize_loops(ops);
-    optimize_dce(ops)
+
+    let ops = optimize_dce(ops);
+
+    optimize_bulk(ops)
+}
+
+fn optimize_bulk(ops: Vec<Op>) -> Vec<Op> {
+    let mut new_ops = Vec::new();
+
+    let mut pending_adds: HashMap<isize, u8> = HashMap::new();
+
+    let mut pending_clears: Vec<isize> = Vec::new();
+
+    let mut loop_stack = Vec::new();
+
+    for op in ops {
+        match op {
+            Op::ValAdd(off, v) => {
+                if !pending_clears.is_empty() {
+                    new_ops.push(Op::BulkClear(pending_clears.clone()));
+
+                    pending_clears.clear();
+                }
+
+                *pending_adds.entry(off).or_insert(0) =
+                    pending_adds.entry(off).or_insert(0).wrapping_add(v);
+            }
+
+            Op::ValSub(off, v) => {
+                if !pending_clears.is_empty() {
+                    new_ops.push(Op::BulkClear(pending_clears.clone()));
+
+                    pending_clears.clear();
+                }
+
+                let v_neg = (0u8).wrapping_sub(v);
+
+                *pending_adds.entry(off).or_insert(0) =
+                    pending_adds.entry(off).or_insert(0).wrapping_add(v_neg);
+            }
+
+            Op::Clear(off) => {
+                if !pending_adds.is_empty() {
+                    let mut sorted_adds: Vec<_> = pending_adds.drain().collect();
+
+                    sorted_adds.sort_by_key(|k| k.0);
+
+                    new_ops.push(Op::BulkAdd(sorted_adds));
+                }
+
+                if !pending_clears.contains(&off) {
+                    pending_clears.push(off);
+                }
+            }
+
+            Op::Jz(_) => {
+                if !pending_adds.is_empty() {
+                    let mut sorted_adds: Vec<_> = pending_adds.drain().collect();
+
+                    sorted_adds.sort_by_key(|k| k.0);
+
+                    new_ops.push(Op::BulkAdd(sorted_adds));
+                }
+
+                if !pending_clears.is_empty() {
+                    new_ops.push(Op::BulkClear(pending_clears.clone()));
+
+                    pending_clears.clear();
+                }
+
+                new_ops.push(Op::Jz(0));
+
+                loop_stack.push(new_ops.len() - 1);
+            }
+
+            Op::Jnz(_) => {
+                if !pending_adds.is_empty() {
+                    let mut sorted_adds: Vec<_> = pending_adds.drain().collect();
+
+                    sorted_adds.sort_by_key(|k| k.0);
+
+                    new_ops.push(Op::BulkAdd(sorted_adds));
+                }
+
+                if !pending_clears.is_empty() {
+                    new_ops.push(Op::BulkClear(pending_clears.clone()));
+
+                    pending_clears.clear();
+                }
+
+                let start = loop_stack.pop().expect("Optimizer: Unmatched ']'");
+
+                let end = new_ops.len();
+
+                new_ops.push(Op::Jnz(start));
+
+                if let Op::Jz(t) = &mut new_ops[start] {
+                    *t = end;
+                }
+            }
+
+            _ => {
+                if !pending_adds.is_empty() {
+                    let mut sorted_adds: Vec<_> = pending_adds.drain().collect();
+
+                    sorted_adds.sort_by_key(|k| k.0);
+
+                    new_ops.push(Op::BulkAdd(sorted_adds));
+                }
+
+                if !pending_clears.is_empty() {
+                    new_ops.push(Op::BulkClear(pending_clears.clone()));
+
+                    pending_clears.clear();
+                }
+
+                new_ops.push(op);
+            }
+        }
+    }
+
+    if !pending_adds.is_empty() {
+        let mut sorted_adds: Vec<_> = pending_adds.drain().collect();
+
+        sorted_adds.sort_by_key(|k| k.0);
+
+        new_ops.push(Op::BulkAdd(sorted_adds));
+    }
+
+    if !pending_clears.is_empty() {
+        new_ops.push(Op::BulkClear(pending_clears));
+    }
+
+    new_ops
 }
 
 fn optimize_loops(ops: Vec<Op>) -> Vec<Op> {
@@ -180,9 +315,9 @@ fn optimize_loops(ops: Vec<Op>) -> Vec<Op> {
     let mut i = 0;
 
     while i < ops.len() {
-        match ops[i] {
+        match &ops[i] {
             Op::Jz(target) => {
-                let body = &ops[i + 1..target];
+                let body = &ops[i + 1..*target];
                 if let Some(scan_op) = check_scan_loop(body) {
                     new_ops.push(scan_op);
                     i = target + 1;
@@ -208,7 +343,7 @@ fn optimize_loops(ops: Vec<Op>) -> Vec<Op> {
                 i += 1;
             }
             other => {
-                new_ops.push(other);
+                new_ops.push(other.clone());
                 i += 1;
             }
         }
@@ -223,7 +358,7 @@ fn optimize_dce(ops: Vec<Op>) -> Vec<Op> {
     let mut known_zero = true;
 
     while i < ops.len() {
-        match ops[i] {
+        match &ops[i] {
             Op::Jz(target) => {
                 if known_zero {
                     i = target + 1;
@@ -246,6 +381,7 @@ fn optimize_dce(ops: Vec<Op>) -> Vec<Op> {
                 i += 1;
             }
             Op::Clear(offset) => {
+                let offset = *offset;
                 if offset == 0 {
                     if !known_zero {
                         new_ops.push(Op::Clear(0));
@@ -258,19 +394,20 @@ fn optimize_dce(ops: Vec<Op>) -> Vec<Op> {
             }
             Op::MulAdd(offset, factor) => {
                 if !known_zero {
-                    new_ops.push(Op::MulAdd(offset, factor));
+                    new_ops.push(Op::MulAdd(*offset, *factor));
                     known_zero = false;
                 }
                 i += 1;
             }
             Op::ScanLeft | Op::ScanRight => {
                 if !known_zero {
-                    new_ops.push(ops[i]);
+                    new_ops.push(ops[i].clone());
                     known_zero = true;
                 }
                 i += 1;
             }
             Op::PtrAdd(n) => {
+                let n = *n;
                 if let Some(Op::PtrAdd(prev)) = new_ops.last_mut() {
                     *prev += n;
                 } else {
@@ -282,6 +419,8 @@ fn optimize_dce(ops: Vec<Op>) -> Vec<Op> {
                 i += 1;
             }
             Op::ValAdd(offset, n) => {
+                let offset = *offset;
+                let n = *n;
                 if let Some(Op::ValAdd(prev_off, prev_val)) = new_ops.last_mut() {
                     if *prev_off == offset {
                         *prev_val = prev_val.wrapping_add(n);
@@ -314,6 +453,8 @@ fn optimize_dce(ops: Vec<Op>) -> Vec<Op> {
                 i += 1;
             }
             Op::ValSub(offset, n) => {
+                let offset = *offset;
+                let n = *n;
                 if let Some(Op::ValSub(prev_off, prev_val)) = new_ops.last_mut() {
                     if *prev_off == offset {
                         *prev_val = prev_val.wrapping_add(n);
@@ -351,7 +492,11 @@ fn optimize_dce(ops: Vec<Op>) -> Vec<Op> {
                 i += 1;
             }
             Op::Output => {
-                new_ops.push(ops[i]);
+                new_ops.push(ops[i].clone());
+                i += 1;
+            }
+            _ => {
+                new_ops.push(ops[i].clone());
                 i += 1;
             }
         }
@@ -439,7 +584,10 @@ mod tests {
         let code = b"+[-][-]".to_vec();
         let ops = parse(code);
         let optimized = optimize(ops);
-        assert_eq!(optimized, vec![Op::ValAdd(0, 1), Op::Clear(0)]);
+        assert_eq!(
+            optimized,
+            vec![Op::BulkAdd(vec![(0, 1)]), Op::BulkClear(vec![0])]
+        );
     }
 
     #[test]
@@ -452,7 +600,7 @@ mod tests {
         let code = b"+[<]".to_vec();
         let ops = parse(code);
         let optimized = optimize(ops);
-        assert_eq!(optimized, vec![Op::ValAdd(0, 1), Op::ScanLeft]);
+        assert_eq!(optimized, vec![Op::BulkAdd(vec![(0, 1)]), Op::ScanLeft]);
     }
 
     #[test]
@@ -467,7 +615,11 @@ mod tests {
         let optimized = optimize(ops);
         assert_eq!(
             optimized,
-            vec![Op::ValAdd(0, 1), Op::MulAdd(1, 1), Op::Clear(0)]
+            vec![
+                Op::BulkAdd(vec![(0, 1)]),
+                Op::MulAdd(1, 1),
+                Op::BulkClear(vec![0])
+            ]
         );
     }
 
@@ -494,7 +646,7 @@ mod tests {
         let code = b"++".to_vec();
         let ops = parse(code);
         let optimized = optimize(ops);
-        assert_eq!(optimized, vec![Op::ValAdd(0, 2)]);
+        assert_eq!(optimized, vec![Op::BulkAdd(vec![(0, 2)])]);
 
         let code = b"++--".to_vec();
         let ops = parse(code);
