@@ -47,7 +47,7 @@ bash script/bench.sh
 
 | Implementation | Time (mean) | Speedup |
 |----------------|-------------|---------|
-| **Interpreter (bfi)** | ~4.12 s | 1x |
-| **Compiler (bfc)** | ~0.54 s | ~7.7x |
+| **Interpreter (bfi)** | ~3.39 s | 1x |
+| **Compiler (bfc)** | ~0.53 s | ~6.5x |
 
 *System: Linux, Rust 1.x*
