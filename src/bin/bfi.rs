@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
 #[derive(Debug, Clone, Copy)]
 enum Op {
