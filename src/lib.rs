@@ -358,10 +358,7 @@ fn optimize_dce(ops: Vec<Op>) -> Vec<Op> {
     }
 
     // Remove PtrAdd(0)
-    new_ops.retain(|op| match op {
-        Op::PtrAdd(0) => false,
-        _ => true,
-    });
+    new_ops.retain(|op| !matches!(op, Op::PtrAdd(0)));
 
     new_ops
 }
