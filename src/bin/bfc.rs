@@ -32,6 +32,7 @@ fn main() {
 
     // 3. Code Generation
     println!("fn main() {{");
+    println!("    #[allow(unused_imports)]");
     println!("    use std::io::{{Read, Write}};");
     println!("    let mut tape = [0u8; 30000];");
     println!("    let mut ptr = 0usize;");
