@@ -41,3 +41,8 @@ hyperfine --warmup 3 \
     -n "Compiler (bfc -> native)" "./target/mandelbrot_native"
 
 echo "Done! Results saved to bench_results.md"
+
+# 6. Clean up
+rm target/mandelbrot_transpiled.rs
+rm target/output_bfi.txt
+rm target/output_native.txt

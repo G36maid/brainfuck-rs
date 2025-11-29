@@ -13,6 +13,8 @@ enum Op {
     Jnz,       // Jump if not zero
     Clear,
     MulAdd(isize, u8),
+    ScanLeft,
+    ScanRight,
 }
 
 fn main() {
@@ -60,6 +62,20 @@ fn main() {
                     "        tape[target_idx] = tape[target_idx].wrapping_add(tape[ptr].wrapping_mul({}));",
                     factor
                 );
+                println!("    }}");
+            }
+            Op::ScanLeft => {
+                println!("    if let Some(pos) = tape[..=ptr].iter().rposition(|&x| x == 0) {{");
+                println!("        ptr = pos;");
+                println!("    }} else {{");
+                println!("        ptr = ptr.wrapping_sub(ptr + 1);");
+                println!("    }}");
+            }
+            Op::ScanRight => {
+                println!("    if let Some(pos) = tape[ptr..].iter().position(|&x| x == 0) {{");
+                println!("        ptr += pos;");
+                println!("    }} else {{");
+                println!("        ptr = tape.len();");
                 println!("    }}");
             }
         }
@@ -167,7 +183,12 @@ fn optimize_loops(ops: Vec<Op>) -> Vec<Op> {
                 // Body is between i+1 and target
                 if target > i + 1 {
                     // Ensure body is not empty
-                    if let Some(mul_ops) = check_move_loop(&ops[i + 1..target]) {
+                    let body = &ops[i + 1..target];
+                    if let Some(scan_op) = check_scan_loop(body) {
+                        new_ops.push(scan_op);
+                        i = target + 1;
+                        continue;
+                    } else if let Some(mul_ops) = check_move_loop(body) {
                         new_ops.extend(mul_ops);
                         new_ops.push(Op::Clear);
                         i = target + 1; // Skip the loop
@@ -233,4 +254,16 @@ fn check_move_loop(body: &[Op]) -> Option<Vec<Op>> {
     }
 
     Some(result)
+}
+
+fn check_scan_loop(body: &[Op]) -> Option<Op> {
+    if body.len() == 1 {
+        match body[0] {
+            Op::PtrAdd(1) => Some(Op::ScanRight),
+            Op::PtrSub(1) => Some(Op::ScanLeft),
+            _ => None,
+        }
+    } else {
+        None
+    }
 }
