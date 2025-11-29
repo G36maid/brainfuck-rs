@@ -43,6 +43,7 @@ hyperfine --warmup 3 \
 echo "Done! Results saved to bench_results.md"
 
 # 6. Clean up
+echo "Cleaning up..."
 rm target/mandelbrot_transpiled.rs
 rm target/output_bfi.txt
 rm target/output_native.txt
