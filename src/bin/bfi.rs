@@ -11,24 +11,40 @@ enum Op {
     Input,
     Jz(usize),  // Jump if zero ( [ )
     Jnz(usize), // Jump if not zero ( ] )
+    Clear,      // Optimization for [-] and [+]
 }
 
 fn main() {
-    // 1. Load Code
+    // 1. Load & Filter Code
     let source = env::args().nth(1).expect("Usage: ./bf <file>");
-    let raw_code = std::fs::read(source).unwrap();
+    let raw = std::fs::read(source).unwrap();
+    let code: Vec<u8> = raw
+        .into_iter()
+        .filter(|c| b"><+-.,[]".contains(c))
+        .collect();
 
-    // 2. Parse & Optimize (RLE)
+    // 2. Parse & Optimize (RLE + Clear Loop)
     let mut ops = Vec::new();
     let mut loop_stack = Vec::new();
     let mut i = 0;
-    let len = raw_code.len();
+    let len = code.len();
 
     while i < len {
-        match raw_code[i] {
+        let b = code[i];
+
+        // Check for clear loop [-] or [+]
+        if b == b'[' && i + 2 < len && code[i + 2] == b']' {
+            if code[i + 1] == b'-' || code[i + 1] == b'+' {
+                ops.push(Op::Clear);
+                i += 3;
+                continue;
+            }
+        }
+
+        match b {
             b'>' => {
                 let mut count = 1;
-                while i + count < len && raw_code[i + count] == b'>' {
+                while i + count < len && code[i + count] == b'>' {
                     count += 1;
                 }
                 ops.push(Op::PtrAdd(count));
@@ -36,7 +52,7 @@ fn main() {
             }
             b'<' => {
                 let mut count = 1;
-                while i + count < len && raw_code[i + count] == b'<' {
+                while i + count < len && code[i + count] == b'<' {
                     count += 1;
                 }
                 ops.push(Op::PtrSub(count));
@@ -44,16 +60,15 @@ fn main() {
             }
             b'+' => {
                 let mut count = 1;
-                while i + count < len && raw_code[i + count] == b'+' {
+                while i + count < len && code[i + count] == b'+' {
                     count += 1;
                 }
-                // Modulo 256 for wrapping behavior optimization
                 ops.push(Op::ValAdd((count % 256) as u8));
                 i += count;
             }
             b'-' => {
                 let mut count = 1;
-                while i + count < len && raw_code[i + count] == b'-' {
+                while i + count < len && code[i + count] == b'-' {
                     count += 1;
                 }
                 ops.push(Op::ValSub((count % 256) as u8));
@@ -85,7 +100,7 @@ fn main() {
                 i += 1;
             }
             _ => {
-                // Ignore comments and other characters
+                // Should not occur due to filtering
                 i += 1;
             }
         }
@@ -115,7 +130,7 @@ fn main() {
                 out.flush().unwrap();
             }
             Op::Input => {
-                // Read 1 byte. Ignore errors (like EOF) to match typical BF behavior/original impl
+                // Read 1 byte. Ignore errors (like EOF)
                 let _ = stdin.read_exact(std::slice::from_mut(&mut tape[ptr]));
             }
             Op::Jz(target) => {
@@ -127,6 +142,9 @@ fn main() {
                 if tape[ptr] != 0 {
                     pc = target;
                 }
+            }
+            Op::Clear => {
+                tape[ptr] = 0;
             }
         }
         pc += 1;

@@ -4,7 +4,7 @@ A minimalist Brainfuck toolchain written in Rust, featuring both an optimizing i
 
 ## Components
 
-1.  **bfi (Interpreter)**: A lightweight interpreter featuring **Instruction Folding (Run-Length Encoding)** and pre-computed jump targets. It folds consecutive identical operations (e.g., `>>>`, `+++`) into single instructions to reduce interpretation overhead.
+1.  **bfi (Interpreter)**: A lightweight interpreter featuring **Instruction Folding (Run-Length Encoding)**, **Clear Loop Optimization**, and pre-computed jump targets. It folds consecutive identical operations (e.g., `>>>`, `+++`) into single instructions and optimizes common patterns like `[-]` to reduce interpretation overhead.
 2.  **bfc (Compiler)**: A transpiler that converts Brainfuck code to Rust, utilizing LLVM (`rustc`) for heavy optimizations (auto-vectorization, loop unrolling, etc.).
 
 ## Usage
