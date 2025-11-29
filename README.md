@@ -1,11 +1,23 @@
 # Brainfuck-rs
 
-A minimalist Brainfuck toolchain written in Rust, featuring both an optimizing interpreter and a transpiler-based compiler.
+A minimalist Brainfuck toolchain written in Rust, featuring an optimizing interpreter (`bfi`) and a transpiler-based compiler (`bfc`).
 
-## Components
+## Features
 
-1.  **bfi (Interpreter)**: A lightweight interpreter featuring **Instruction Folding (Run-Length Encoding)**, **Offset Optimization (Lazy Pointer)**, **Dead Code Elimination (DCE)**, **Clear Loop Optimization**, **Move Loop Optimization**, **Scan Loop Optimization**, **Parallel Assignment (Bulk Operations)**, and pre-computed jump targets. It defers pointer movements to merge operations, removes unreachable code/loops, folds consecutive identical operations (e.g., `>>>`, `+++`), optimizes `[-]` loops, transforms linear loops like `[->+<]` into optimized arithmetic, optimizes scan loops like `[<]` and `[>]`, and batches consecutive updates into parallel assignments.
-2.  **bfc (Compiler)**: A transpiler that converts Brainfuck code to Rust. It performs **Instruction Folding**, **Offset Optimization**, **Dead Code Elimination**, **Clear Loop Optimization**, **Move Loop Optimization**, **Scan Loop Optimization**, and **Parallel Assignment** during transpilation, utilizing LLVM (`rustc`) for heavy optimizations (auto-vectorization, loop unrolling, etc.).
+Both the interpreter (`bfi`) and compiler (`bfc`) share a common optimization pipeline that includes:
+
+- **Instruction Folding (Run-Length Encoding)**: Merges consecutive identical operations (e.g., `>>>` becomes a single `PtrAdd(3)`).
+- **Offset Optimization (Lazy Pointer)**: Defers pointer movements (`<`, `>`) to merge subsequent value updates (`+`, `-`) into single operations with a pointer offset. This significantly reduces the total number of instructions.
+- **Parallel Assignment (Bulk Operations)**: Batches consecutive `ValAdd`, `ValSub`, and `Clear` operations into single `BulkAdd`/`BulkClear` instructions, improving performance by processing multiple memory updates at once.
+- **Dead Code Elimination (DCE)**: Removes unreachable code, such as loops that will never be entered or redundant clear operations.
+- **Clear Loop Optimization**: Replaces common patterns like `[-]` or `[+]` with a single `Clear` operation.
+- **Move Loop Optimization**: Transforms multiplication loops like `[->+<]` into a series of efficient `MulAdd` operations, which calculate the result directly.
+- **Scan Loop Optimization**: Replaces simple scan loops like `[<]` or `[>]` with a single `ScanLeft`/`ScanRight` operation to quickly find the next zero cell.
+
+### Interpreter (`bfi`) vs. Compiler (`bfc`)
+
+- **`bfi` (Interpreter)**: Executes the optimized instructions directly. It's fast, portable, and ideal for immediate execution without a separate compile step.
+- **`bfc` (Compiler)**: Transpiles the optimized instructions into Rust code. The Rust compiler (`rustc`) then performs further, deeper optimizations (like auto-vectorization, loop unrolling, etc.) by leveraging the LLVM backend, resulting in the fastest possible native executable.
 
 ## Usage
 
