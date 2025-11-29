@@ -19,7 +19,7 @@ rustc -O -C opt-level=3 target/mandelbrot_transpiled.rs -o target/mandelbrot_nat
 
 # 4. Benchmark (Interpreter vs Native)
 echo "Running Benchmark..."
-/usr/bin/hyperfine --warmup 3 \
+hyperfine --warmup 3 \
     --export-markdown bench_results.md \
     -n "Interpreter (bfi)" "./target/release/bfi examples/mandelbrot.bf" \
     -n "Compiler (bfc -> native)" "./target/mandelbrot_native"
