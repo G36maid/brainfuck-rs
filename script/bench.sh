@@ -17,7 +17,23 @@ echo "Compiling Brainfuck to Native Machine Code..."
 ./target/release/bfc < examples/mandelbrot.bf > target/mandelbrot_transpiled.rs
 rustc -O -C opt-level=3 target/mandelbrot_transpiled.rs -o target/mandelbrot_native
 
-# 4. Benchmark (Interpreter vs Native)
+# 4. Verification
+echo "Verifying correctness..."
+
+./target/release/bfi examples/mandelbrot.bf > target/output_bfi.txt
+./target/mandelbrot_native > target/output_native.txt
+
+# Compare the outputs. If they differ, diff will return non-zero and the script will exit due to set -e
+if ! diff -q target/output_bfi.txt target/output_native.txt; then
+    echo "❌ Validation Failed! Outputs differ."
+    diff target/output_bfi.txt target/output_native.txt | head -n 10
+    exit 1
+else
+    echo "✅ Validation Passed! Outputs match."
+fi
+
+
+# 5. Benchmark (Interpreter vs Native)
 echo "Running Benchmark..."
 hyperfine --warmup 3 \
     --export-markdown bench_results.md \
