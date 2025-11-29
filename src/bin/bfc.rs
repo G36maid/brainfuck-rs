@@ -8,7 +8,7 @@ fn main() {
     // Filter code
     let code: Vec<u8> = raw.bytes().filter(|c| b"><+-.,[]".contains(c)).collect();
 
-    // 1. Parse (RLE + Clear Loop + Jumps)
+    // 1. Parse (RLE + Offset Optimization)
     let ops = parse(code);
 
     // 2. Optimize (Loops + DCE)
@@ -23,25 +23,54 @@ fn main() {
 
     for op in ops {
         match op {
-            Op::PtrAdd(n) => println!("    ptr = ptr.wrapping_add({});", n),
-            Op::PtrSub(n) => println!("    ptr = ptr.wrapping_sub({});", n),
-            Op::ValAdd(n) => println!("    tape[ptr] = tape[ptr].wrapping_add({});", n),
-            Op::ValSub(n) => println!("    tape[ptr] = tape[ptr].wrapping_sub({});", n),
+            Op::PtrAdd(n) => {
+                println!("    ptr = ptr.wrapping_add_signed({}isize);", n);
+            }
+            Op::ValAdd(offset, n) => {
+                if offset == 0 {
+                    println!("    tape[ptr] = tape[ptr].wrapping_add({});", n);
+                } else {
+                    println!("    {{");
+                    println!(
+                        "        let idx = ptr.wrapping_add_signed({}isize);",
+                        offset
+                    );
+                    println!("        tape[idx] = tape[idx].wrapping_add({});", n);
+                    println!("    }}");
+                }
+            }
+            Op::ValSub(offset, n) => {
+                if offset == 0 {
+                    println!("    tape[ptr] = tape[ptr].wrapping_sub({});", n);
+                } else {
+                    println!("    {{");
+                    println!(
+                        "        let idx = ptr.wrapping_add_signed({}isize);",
+                        offset
+                    );
+                    println!("        tape[idx] = tape[idx].wrapping_sub({});", n);
+                    println!("    }}");
+                }
+            }
             Op::Output => println!("    std::io::stdout().write_all(&[tape[ptr]]).unwrap();"),
             Op::Input => println!(
                 "    std::io::stdin().read_exact(std::slice::from_mut(&mut tape[ptr])).ok();"
             ),
             Op::Jz(_) => println!("    while tape[ptr] != 0 {{"),
             Op::Jnz(_) => println!("    }}"),
-            Op::Clear => println!("    tape[ptr] = 0;"),
+            Op::Clear(offset) => {
+                if offset == 0 {
+                    println!("    tape[ptr] = 0;");
+                } else {
+                    println!("    tape[ptr.wrapping_add_signed({}isize)] = 0;", offset);
+                }
+            }
             Op::MulAdd(offset, factor) => {
-                // Generate optimized move loop code
-                // tape[ptr + offset] += tape[ptr] * factor;
-                // Note: using wrapping arithmetic for safety and BF semantics
+                // MulAdd adds (tape[ptr] * factor) to tape[ptr + offset]
                 println!("    if tape[ptr] != 0 {{");
                 println!(
-                    "        let target_idx = ptr.wrapping_add({}usize);",
-                    offset as usize
+                    "        let target_idx = ptr.wrapping_add_signed({}isize);",
+                    offset
                 );
                 println!(
                     "        tape[target_idx] = tape[target_idx].wrapping_add(tape[ptr].wrapping_mul({}));",

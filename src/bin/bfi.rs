@@ -11,7 +11,7 @@ fn main() {
         .filter(|c| b"><+-.,[]".contains(c))
         .collect();
 
-    // 2. Parse (RLE + Clear Loop)
+    // 2. Parse (RLE + Offset Optimization)
     let ops = parse(code);
 
     // 3. Optimize (Loops + DCE)
@@ -32,10 +32,17 @@ fn execute(ops: Vec<Op>) {
 
     while pc < ops.len() {
         match ops[pc] {
-            Op::PtrAdd(n) => ptr = ptr.wrapping_add(n),
-            Op::PtrSub(n) => ptr = ptr.wrapping_sub(n),
-            Op::ValAdd(n) => tape[ptr] = tape[ptr].wrapping_add(n),
-            Op::ValSub(n) => tape[ptr] = tape[ptr].wrapping_sub(n),
+            Op::PtrAdd(n) => {
+                ptr = ptr.wrapping_add_signed(n);
+            }
+            Op::ValAdd(offset, n) => {
+                let idx = ptr.wrapping_add_signed(offset);
+                tape[idx] = tape[idx].wrapping_add(n);
+            }
+            Op::ValSub(offset, n) => {
+                let idx = ptr.wrapping_add_signed(offset);
+                tape[idx] = tape[idx].wrapping_sub(n);
+            }
             Op::Output => {
                 out.write_all(&[tape[ptr]]).unwrap();
                 out.flush().unwrap();
@@ -53,19 +60,15 @@ fn execute(ops: Vec<Op>) {
                     pc = target;
                 }
             }
-            Op::Clear => {
-                tape[ptr] = 0;
+            Op::Clear(offset) => {
+                let idx = ptr.wrapping_add_signed(offset);
+                tape[idx] = 0;
             }
             Op::MulAdd(offset, factor) => {
                 if tape[ptr] != 0 {
-                    // target_ptr = ptr + offset
-                    let target_ptr = ptr.wrapping_add(offset as usize);
-
-                    // Standard Brainfuck tape is often unchecked or cyclic.
-                    // Here we respect the 30k buffer size.
-                    // Panic if OOB is standard behavior for Vec access.
-                    tape[target_ptr] =
-                        tape[target_ptr].wrapping_add(tape[ptr].wrapping_mul(factor));
+                    let target_idx = ptr.wrapping_add_signed(offset);
+                    tape[target_idx] =
+                        tape[target_idx].wrapping_add(tape[ptr].wrapping_mul(factor));
                 }
             }
             Op::ScanLeft => {
